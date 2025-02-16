@@ -8,21 +8,26 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-# Set your Stripe secret key here (keep it secure)
+# Set your Stripe secret key (keep it secure)
 stripe.api_key = "sk_test_51QswfJH7i1hE4ufzDYKoET9UiD0BxGv0zXaY2lSbb9jT2oBCpM4Y4cyPa5Jp8k2KhtM67ygpdpBXmXljqMzwhyle00w6PaX2gL"
 
-# Get your webhook signing secret from environment variables
+# Stripe webhook signing secret from environment variable
 endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "your_webhook_secret_here")
 
-# Initialize Firebase using encoded credentials if provided.
-if not firebase_admin._apps:
-    ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "ENCODED_CREDS_HERE")
-    if ENCODED_CREDS:
-        cred_dict = json.loads(base64.b64decode(ENCODED_CREDS))
+# Initialize Firebase:
+# Use the encoded credentials if provided; otherwise fall back to default initialization.
+ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "").strip()
+if ENCODED_CREDS:
+    try:
+        decoded = base64.b64decode(ENCODED_CREDS)
+        cred_dict = json.loads(decoded.decode("utf-8"))
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-    else:
+    except Exception as e:
+        print("Error decoding ENCODED_CREDS:", e)
         firebase_admin.initialize_app()
+else:
+    firebase_admin.initialize_app()
 
 # Create a Firestore client
 db = firestore.client()
@@ -44,7 +49,7 @@ def webhook_received():
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
-        print(f"Error verifying webhook signature: {str(e)}")
+        print("Error verifying webhook signature:", e)
         return jsonify(success=False), 400
 
     if event['type'] == 'checkout.session.completed':
@@ -65,5 +70,4 @@ def cancel():
     return "Payment was canceled. Please try again."
 
 if __name__ == '__main__':
-    # Render will bind PORT from environment or default to 5000
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)

@@ -1,6 +1,5 @@
 import os
 import stripe
-import base64
 import json
 from flask import Flask, request, jsonify
 import firebase_admin
@@ -8,26 +7,33 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-# Set your Stripe secret key (keep it secure)
-stripe.api_key = "sk_test_51QswfJH7i1hE4ufzDYKoET9UiD0BxGv0zXaY2lSbb9jT2oBCpM4Y4cyPa5Jp8k2KhtM67ygpdpBXmXljqMzwhyle00w6PaX2gL"
-
-# Stripe webhook signing secret from environment variable
+# Retrieve sensitive configuration from environment variables
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")  # e.g., "sk_test_..."
 endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "your_webhook_secret_here")
 
-# Initialize Firebase:
-# Use the encoded credentials if provided; otherwise fall back to default initialization.
-ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "ENCODED_CREDS_HERE").strip()
-if ENCODED_CREDS:
-    try:
-        decoded = base64.b64decode(ENCODED_CREDS)
-        cred_dict = json.loads(decoded.decode("utf-8"))
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        print("Error decoding ENCODED_CREDS:", e)
-        firebase_admin.initialize_app()
-else:
-    firebase_admin.initialize_app()
+# Load Firebase service account information from environment variables.
+# Make sure to replace literal '\n' with real newlines in the private key.
+service_account_info = {
+  "type": os.environ.get("FIREBASE_TYPE"),
+  "project_id": os.environ.get("FIREBASE_PROJECT_ID"),
+  "private_key_id": os.environ.get("FIREBASE_PRIVATE_KEY_ID"),
+  "private_key": os.environ.get("FIREBASE_PRIVATE_KEY", "").replace('\\n', '\n'),
+  "client_email": os.environ.get("FIREBASE_CLIENT_EMAIL"),
+  "client_id": os.environ.get("FIREBASE_CLIENT_ID"),
+  "auth_uri": os.environ.get("FIREBASE_AUTH_URI"),
+  "token_uri": os.environ.get("FIREBASE_TOKEN_URI"),
+  "auth_provider_x509_cert_url": os.environ.get("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+  "client_x509_cert_url": os.environ.get("FIREBASE_CLIENT_X509_CERT_URL"),
+  "universe_domain": os.environ.get("FIREBASE_UNIVERSE_DOMAIN")
+}
+
+# Initialize Firebase with the provided service account credentials
+try:
+    cred = credentials.Certificate(service_account_info)
+    firebase_admin.initialize_app(cred)
+except Exception as e:
+    print("Error initializing Firebase with provided credentials:", e)
+    firebase_admin.initialize_app()  # fallback to default initialization
 
 # Create a Firestore client
 db = firestore.client()

@@ -16,7 +16,7 @@ endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "your_webhook_secret_h
 
 # Initialize Firebase:
 # Use the encoded credentials if provided; otherwise fall back to default initialization.
-ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "").strip()
+ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "ENCODED_CREDS_HERE").strip()
 if ENCODED_CREDS:
     try:
         decoded = base64.b64decode(ENCODED_CREDS)

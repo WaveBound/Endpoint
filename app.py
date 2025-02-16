@@ -1,27 +1,48 @@
 import os
 import stripe
+import base64
+import json
 from flask import Flask, request, jsonify
-
-# Import your Api class from your codebase (adjust the import if necessary)
-from WaveBound_Login import Api
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
+# Set your Stripe secret key here (keep it secure)
 stripe.api_key = "sk_test_51QswfJH7i1hE4ufzDYKoET9UiD0BxGv0zXaY2lSbb9jT2oBCpM4Y4cyPa5Jp8k2KhtM67ygpdpBXmXljqMzwhyle00w6PaX2gL"
+
+# Get your webhook signing secret from environment variables
 endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "your_webhook_secret_here")
 
-# Instantiate your Api to use its methods (including Firebase functionality)
-api_instance = Api()
+# Initialize Firebase using encoded credentials if provided.
+if not firebase_admin._apps:
+    ENCODED_CREDS = os.environ.get("ENCODED_CREDS", "ENCODED_CREDS_HERE")
+    if ENCODED_CREDS:
+        cred_dict = json.loads(base64.b64decode(ENCODED_CREDS))
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    else:
+        firebase_admin.initialize_app()
+
+# Create a Firestore client
+db = firestore.client()
+
+def record_purchase(email, transaction_id):
+    purchase_data = {
+        'email': email,
+        'purchased': True,
+        'purchase_date': firestore.SERVER_TIMESTAMP,
+        'transaction_id': transaction_id
+    }
+    db.collection('purchases').document(email).set(purchase_data)
+    print(f"Recorded purchase for {email} with transaction {transaction_id}")
 
 @app.route('/webhook', methods=['POST'])
 def webhook_received():
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
-        )
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
         print(f"Error verifying webhook signature: {str(e)}")
         return jsonify(success=False), 400
@@ -30,9 +51,7 @@ def webhook_received():
         session = event['data']['object']
         customer_email = session.get("customer_details", {}).get("email")
         transaction_id = session.get("payment_intent")
-        
-        # Update Firebase by recording the purchase
-        api_instance.record_purchase(customer_email, transaction_id)
+        record_purchase(customer_email, transaction_id)
         print(f"Payment succeeded for {customer_email}. Transaction ID: {transaction_id}")
 
     return jsonify(success=True), 200
@@ -46,4 +65,5 @@ def cancel():
     return "Payment was canceled. Please try again."
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Render will bind PORT from environment or default to 5000
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)

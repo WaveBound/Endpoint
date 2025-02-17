@@ -1,4 +1,4 @@
-import os
+ import os
 import stripe
 import json
 import firebase_admin
@@ -56,30 +56,12 @@ def webhook_received():
         print("Error verifying webhook signature:", e)
         return jsonify(success=False), 400
 
-    # Log the full event data
-    print("Received webhook event:", event)
-
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        
-        # Log the session data
-        print("Session data:", session)
-        
-        # Log metadata specifically
-        print("Session metadata:", session.get("metadata"))
-        
-        # Get and log email before processing
-        user_email = session.get("metadata", {}).get("user_email")
-        print("Extracted user email:", user_email)
-
+        customer_email = session.get("customer_details", {}).get("email")
         transaction_id = session.get("payment_intent")
-        print("Transaction ID:", transaction_id)
-        
-        if user_email:
-            record_purchase(user_email, transaction_id)
-            print(f"Payment succeeded for {user_email}. Transaction ID: {transaction_id}")
-        else:
-            print("No user email found in session metadata")
+        record_purchase(customer_email, transaction_id)
+        print(f"Payment succeeded for {customer_email}. Transaction ID: {transaction_id}")
 
     return jsonify(success=True), 200
 

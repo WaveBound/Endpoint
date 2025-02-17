@@ -56,16 +56,31 @@ def webhook_received():
         print("Error verifying webhook signature:", e)
         return jsonify(success=False), 400
 
+    # Log the full event data
+    print("Received webhook event:", event)
+
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        # Get email from metadata instead of customer details
+        
+        # Log the session data
+        print("Session data:", session)
+        
+        # Log metadata specifically
+        print("Session metadata:", session.get("metadata"))
+        
+        # Get and log email before processing
         user_email = session.get("metadata", {}).get("user_email")
+        print("Extracted user email:", user_email)
+
         transaction_id = session.get("payment_intent")
+        print("Transaction ID:", transaction_id)
         
         if user_email:
             record_purchase(user_email, transaction_id)
             print(f"Payment succeeded for {user_email}. Transaction ID: {transaction_id}")
-        
+        else:
+            print("No user email found in session metadata")
+
     return jsonify(success=True), 200
 
 if __name__ == '__main__':

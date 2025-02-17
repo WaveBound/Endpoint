@@ -58,11 +58,14 @@ def webhook_received():
 
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        customer_email = session.get("customer_details", {}).get("email")
+        # Get email from metadata instead of customer details
+        user_email = session.get("metadata", {}).get("user_email")
         transaction_id = session.get("payment_intent")
-        record_purchase(customer_email, transaction_id)
-        print(f"Payment succeeded for {customer_email}. Transaction ID: {transaction_id}")
-
+        
+        if user_email:
+            record_purchase(user_email, transaction_id)
+            print(f"Payment succeeded for {user_email}. Transaction ID: {transaction_id}")
+        
     return jsonify(success=True), 200
 
 if __name__ == '__main__':
